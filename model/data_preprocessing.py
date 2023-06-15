@@ -45,15 +45,15 @@ def text_classification(doc):
 
 # извелечение фичей id
 def id_features_extract(id1: str, id2: str) -> pd.Series:
-    result = {'id1_0': 0., 'id1_1': 0., 
-              'id2_0': 0., 'id2_1': 0.}
+    result = {'id1_pred': 0., 'id1_in_database': 0., 
+              'id2_pred': 0., 'id2_in_database': 0.}
     if any(id1 == id1_data['id1']):
-        result['id1_0'] = id1_data[id1_data['id1']==id1]['id1_0'].to_numpy()[0]
-        result['id1_1'] = id1_data[id1_data['id1']==id1]['id1_1'].to_numpy()[0]
+        result['id1_pred'] = id1_data[id1_data['id1']==id1]['id1_pred'].to_numpy()[0]
+        result['id1_in_database'] = id1_data[id1_data['id1']==id1]['id1_in_database'].to_numpy()[0]
 
     if any(id2_data['id2'] == id2):
-        result['id2_0'] = id2_data[id2_data['id2']==id2]['id2_0'].to_numpy()[0]
-        result['id2_1'] = id2_data[id2_data['id2']==id2]['id2_1'].to_numpy()[0]
+        result['id2_pred'] = id2_data[id2_data['id2']==id2]['id2_pred'].to_numpy()[0]
+        result['id2_in_database'] = id2_data[id2_data['id2']==id2]['id2_in_database'].to_numpy()[0]
     return pd.Series(data=result)
 
 
@@ -83,8 +83,11 @@ def text_features_extract(s: pd.Series) -> pd.Series:
 
 # дополнение данных
 def get_features(series: pd.Series) -> pd.Series:
+    # информация о классе текста
     text_class = text_classification(series['text'])
+    # выделение фичей из id
     id_features = id_features_extract(series['id1'], series['id2'])
+    # выделение фичей из текста
     text_features = text_features_extract(series)
     result = series.copy()
     result = result._append([text_features, id_features, text_class])
