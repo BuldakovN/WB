@@ -3,43 +3,47 @@ import pandas as pd
 from data_preprocessing import get_features
 
 class FakeReviewsClassifier:
-    def __init__(self, id_mode='with_id'):
-        self.id_mode = id_mode
-        assert id_mode in ['without_id', 'with_id'], KeyError()
-        self.catboost_model = CatBoostClassifier().load_model(f'./catboost_{id_mode}.model')
+    def __init__(self, model_path='./catboost_full.model', get_features=True):
+        self.catboost_model: CatBoostClassifier = CatBoostClassifier().load_model(model_path)
+        self.feature_names_ = self.catboost_model.feature_names_
+        self.get_features = get_features
+        
+    def get_params(self):
+        return self.catboost_model.get_params()
 
     def get_features(self, data: pd.Series):
         return get_features(data)
 
     def preproccess(self, data: pd.Series, get_features):
+        data = data.drop(['f2', 'f4'], errors='ignore')
         if get_features:
-             data = self.get_features(data)
-        data = data.drop(['id1', 'id2', 'id3', 'text', 'label'], errors='ignore')   
-        if self.id_mode == 'without_id':
-            data = data.drop(['id1_0', 'id1_1', 'id2_0', 'id2_1'], errors='ignore')  
+            data = self.get_features(data)
+            data = data.drop(['id1', 'id2', 'id3', 'text', 'label'])   
+        else:
+            data = data[self.feature_names_]
         return data
     
-    # предсказание по 
-    def id_predict(self, data, id_threshold):
-        if self.id_mode == 'with_id':
-            id1_0, id1_1 = data['id1_0'], data['id1_1']
-            if abs(id1_0 - id1_1) >= id_threshold:
-                return 0 if id1_0 > id1_1 else 1
-            id2_0, id2_1 = data['id2_0'], data['id2_1']
-            if abs(id2_0 - id2_1) >= id_threshold:
-                return 0 if id2_0 > id2_1 else 1
-        else:
+    # предсказание по id
+    def id_predict(self, data: pd.Series, threshold):
+        if not ('id1_in_database' in data.index):
             return None
+        if data['id1_in_database']:
+            return 1 if data['id1_pred'] >= threshold else 0
+        return None
+        
         
     def predict(self, data: pd.Series, 
-                get_features=True, 
-                id_predict=False, 
-                id_threshold = 0.5):
+                get_features=None, 
+                id_predict = True,
+                threshold = 0.5):
+        if get_features is None:
+            get_features = self.get_features
         data = self.preproccess(data, get_features)
         # если пользователь оставляет очень много фейков или наоборот – честных отзывов
         predict = None
-        if id_predict and self.id_mode == 'with_id':
-            predict = self.id_predict(data, id_threshold)
+        if id_predict:
+            predict = self.id_predict(data, threshold=threshold)
         if predict is None:
+            self.catboost_model.set_probability_threshold(threshold)
             predict = self.catboost_model.predict(data)
         return predict
